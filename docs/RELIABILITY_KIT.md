@@ -38,5 +38,9 @@ Scope: production-grade reliability primitives for Starknet agent workflows.
 ## Progress log
 
 ### 2026-02-09
-- Initialized Reliability Kit spec and execution sequence.
-- Next: implement shared error envelope + retryability classifier in one package path.
+- Implemented shared MCP error taxonomy in `packages/starknet-mcp-server/src/utils/formatter.ts` via `classifyError()` with normalized categories and retryability flags.
+- Added traceability primitive `createErrorTraceId()` and wired `traceId`, `category`, and `retryable` into MCP tool error responses and structured stderr logs (`src/index.ts`).
+- Added unit coverage for taxonomy + trace-id generation (`__tests__/utils/formatter.test.ts`).
+- Verified: `pnpm exec vitest run __tests__/utils/formatter.test.ts` passed (21/21).
+- Blocker (verified): full package test run fails in `__tests__/handlers/tools.test.ts` due to unresolved workspace entry for `@starknet-agentic/x402-starknet`.
+- Next: implement bounded exponential backoff (with jitter) only when `retryable === true`, then address x402 workspace entry resolution to restore full handler suite.

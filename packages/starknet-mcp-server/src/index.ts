@@ -54,7 +54,12 @@ import {
 } from "@avnu/avnu-sdk";
 import { z } from "zod";
 import { createStarknetPaymentSignatureHeader } from "@starknet-agentic/x402-starknet";
-import { formatAmount, formatQuoteFields, formatErrorMessage } from "./utils/formatter.js";
+import {
+  formatAmount,
+  formatQuoteFields,
+  classifyError,
+  createErrorTraceId,
+} from "./utils/formatter.js";
 
 // Environment validation
 const envSchema = z.object({
@@ -890,7 +895,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const userMessage = formatErrorMessage(errorMessage);
+    const classified = classifyError(errorMessage);
+    const traceId = createErrorTraceId();
+
+    console.error(
+      JSON.stringify({
+        level: "error",
+        traceId,
+        tool: name,
+        category: classified.category,
+        retryable: classified.retryable,
+        error: errorMessage,
+      })
+    );
 
     return {
       content: [
@@ -898,8 +915,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           type: "text",
           text: JSON.stringify({
             error: true,
-            message: userMessage,
-            originalError: errorMessage !== userMessage ? errorMessage : undefined,
+            traceId,
+            category: classified.category,
+            retryable: classified.retryable,
+            message: classified.message,
+            originalError: errorMessage !== classified.message ? errorMessage : undefined,
             tool: name,
           }, null, 2),
         },

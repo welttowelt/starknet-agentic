@@ -71,26 +71,51 @@ export function formatQuoteFields(
  * Common error patterns and their user-friendly messages.
  * Used to translate technical errors into actionable feedback.
  */
-const ERROR_PATTERNS: Array<{ patterns: string[]; message: string }> = [
+export type ErrorCategory =
+  | "insufficient_liquidity"
+  | "slippage"
+  | "quote_expired"
+  | "insufficient_balance"
+  | "no_quotes_available"
+  | "unknown";
+
+type ErrorPattern = {
+  category: ErrorCategory;
+  patterns: string[];
+  message: string;
+  retryable: boolean;
+};
+
+const ERROR_PATTERNS: ErrorPattern[] = [
   {
+    category: "insufficient_liquidity",
     patterns: ["INSUFFICIENT_LIQUIDITY", "insufficient liquidity"],
     message: "Insufficient liquidity for this swap. Try a smaller amount or different token pair.",
+    retryable: true,
   },
   {
+    category: "slippage",
     patterns: ["SLIPPAGE", "slippage", "Insufficient tokens received"],
     message: "Slippage exceeded. Try increasing slippage tolerance.",
+    retryable: true,
   },
   {
+    category: "quote_expired",
     patterns: ["QUOTE_EXPIRED", "quote expired"],
     message: "Quote expired. Please retry the operation.",
+    retryable: true,
   },
   {
+    category: "insufficient_balance",
     patterns: ["INSUFFICIENT_BALANCE", "insufficient balance"],
     message: "Insufficient token balance for this operation.",
+    retryable: false,
   },
   {
+    category: "no_quotes_available",
     patterns: ["No quotes available"],
     message: "No swap routes available for this token pair. The pair may not have liquidity.",
+    retryable: true,
   },
 ];
 
@@ -110,11 +135,29 @@ const ERROR_PATTERNS: Array<{ patterns: string[]; message: string }> = [
  * // → "Unknown error occurred" (passthrough if no pattern matches)
  * ```
  */
-export function formatErrorMessage(errorMessage: string): string {
-  for (const { patterns, message } of ERROR_PATTERNS) {
+export function classifyError(errorMessage: string): {
+  category: ErrorCategory;
+  message: string;
+  retryable: boolean;
+} {
+  for (const { category, patterns, message, retryable } of ERROR_PATTERNS) {
     if (patterns.some((p) => errorMessage.includes(p))) {
-      return message;
+      return { category, message, retryable };
     }
   }
-  return errorMessage;
+
+  return {
+    category: "unknown",
+    message: errorMessage,
+    retryable: false,
+  };
+}
+
+export function formatErrorMessage(errorMessage: string): string {
+  return classifyError(errorMessage).message;
+}
+
+export function createErrorTraceId(prefix = "err"): string {
+  const randomSuffix = Math.random().toString(36).slice(2, 8);
+  return `${prefix}_${Date.now().toString(36)}_${randomSuffix}`;
 }

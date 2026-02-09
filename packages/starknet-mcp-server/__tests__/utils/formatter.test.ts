@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { formatAmount, formatQuoteFields, formatErrorMessage } from "../../src/utils/formatter";
+import {
+  formatAmount,
+  formatQuoteFields,
+  formatErrorMessage,
+  classifyError,
+  createErrorTraceId,
+} from "../../src/utils/formatter";
 
 describe("formatAmount", () => {
   it("should format whole amounts correctly", () => {
@@ -123,5 +129,31 @@ describe("formatErrorMessage", () => {
   it("should return original message for unknown errors", () => {
     const unknownError = "Something unexpected happened";
     expect(formatErrorMessage(unknownError)).toBe(unknownError);
+  });
+});
+
+describe("classifyError", () => {
+  it("should classify retryable quote expiry errors", () => {
+    expect(classifyError("QUOTE_EXPIRED")).toEqual({
+      category: "quote_expired",
+      message: "Quote expired. Please retry the operation.",
+      retryable: true,
+    });
+  });
+
+  it("should classify unknown errors as non-retryable", () => {
+    expect(classifyError("unexpected panic")).toEqual({
+      category: "unknown",
+      message: "unexpected panic",
+      retryable: false,
+    });
+  });
+});
+
+describe("createErrorTraceId", () => {
+  it("should create prefixed trace ids", () => {
+    const traceId = createErrorTraceId("swap");
+    expect(traceId.startsWith("swap_")).toBe(true);
+    expect(traceId.split("_").length).toBe(3);
   });
 });
