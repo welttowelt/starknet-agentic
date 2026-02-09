@@ -60,6 +60,7 @@ import {
   classifyError,
   createErrorTraceId,
 } from "./utils/formatter.js";
+import { withRetry } from "./utils/retry.js";
 
 // Environment validation
 const envSchema = z.object({
@@ -70,6 +71,9 @@ const envSchema = z.object({
   AVNU_PAYMASTER_URL: z.string().url().optional(),
   AVNU_PAYMASTER_API_KEY: z.string().optional(),
   AGENT_ACCOUNT_FACTORY_ADDRESS: z.string().startsWith("0x").optional(),
+  RETRY_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).optional(),
+  RETRY_BASE_DELAY_MS: z.coerce.number().int().min(0).max(60_000).optional(),
+  RETRY_MAX_DELAY_MS: z.coerce.number().int().min(1).max(120_000).optional(),
 });
 
 const env = envSchema.parse({
@@ -80,6 +84,9 @@ const env = envSchema.parse({
   AVNU_PAYMASTER_URL: process.env.AVNU_PAYMASTER_URL || "https://starknet.paymaster.avnu.fi",
   AVNU_PAYMASTER_API_KEY: process.env.AVNU_PAYMASTER_API_KEY,
   AGENT_ACCOUNT_FACTORY_ADDRESS: process.env.AGENT_ACCOUNT_FACTORY_ADDRESS,
+  RETRY_MAX_ATTEMPTS: process.env.RETRY_MAX_ATTEMPTS,
+  RETRY_BASE_DELAY_MS: process.env.RETRY_BASE_DELAY_MS,
+  RETRY_MAX_DELAY_MS: process.env.RETRY_MAX_DELAY_MS,
 });
 
 // Initialize Starknet provider and account
@@ -93,6 +100,11 @@ const account = new Account({
 
 // Fee mode: sponsored (gasfree, dApp pays) vs default (user pays in gasToken)
 const isSponsored = !!env.AVNU_PAYMASTER_API_KEY;
+const retryConfig = {
+  maxAttempts: env.RETRY_MAX_ATTEMPTS ?? 3,
+  baseDelayMs: env.RETRY_BASE_DELAY_MS ?? 200,
+  maxDelayMs: env.RETRY_MAX_DELAY_MS ?? 2_000,
+};
 
 // Initialize TokenService with avnu base URL and RPC provider for on-chain fallback
 getTokenService(env.AVNU_BASE_URL);
@@ -675,7 +687,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           takerAddress: account.address,
         };
 
-        const quotes = await getQuotes(quoteParams, { baseUrl: env.AVNU_BASE_URL });
+        const quotes = await withRetry(
+          "starknet_swap.getQuotes",
+          () => getQuotes(quoteParams, { baseUrl: env.AVNU_BASE_URL }),
+          {
+            ...retryConfig,
+            onRetry: ({ attempt, nextDelayMs, category, error }) => {
+              console.error(
+                JSON.stringify({
+                  level: "warn",
+                  tool: name,
+                  operation: "getQuotes",
+                  attempt,
+                  nextDelayMs,
+                  category,
+                  error,
+                })
+              );
+            },
+          }
+        );
         if (!quotes || quotes.length === 0) {
           throw new Error("No quotes available for this swap");
         }
@@ -737,7 +768,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           takerAddress: account.address,
         };
 
-        const quotes = await getQuotes(quoteParams, { baseUrl: env.AVNU_BASE_URL });
+        const quotes = await withRetry(
+          "starknet_get_quote.getQuotes",
+          () => getQuotes(quoteParams, { baseUrl: env.AVNU_BASE_URL }),
+          {
+            ...retryConfig,
+            onRetry: ({ attempt, nextDelayMs, category, error }) => {
+              console.error(
+                JSON.stringify({
+                  level: "warn",
+                  tool: name,
+                  operation: "getQuotes",
+                  attempt,
+                  nextDelayMs,
+                  category,
+                  error,
+                })
+              );
+            },
+          }
+        );
         if (!quotes || quotes.length === 0) {
           throw new Error("No quotes available");
         }

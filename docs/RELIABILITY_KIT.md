@@ -43,4 +43,9 @@ Scope: production-grade reliability primitives for Starknet agent workflows.
 - Added unit coverage for taxonomy + trace-id generation (`__tests__/utils/formatter.test.ts`).
 - Verified: `pnpm exec vitest run __tests__/utils/formatter.test.ts` passed (21/21).
 - Blocker (verified): full package test run fails in `__tests__/handlers/tools.test.ts` due to unresolved workspace entry for `@starknet-agentic/x402-starknet`.
-- Next: implement bounded exponential backoff (with jitter) only when `retryable === true`, then address x402 workspace entry resolution to restore full handler suite.
+- Implemented bounded exponential backoff with jitter in new `withRetry()` utility (`src/utils/retry.ts`) and wired quote fetches (`starknet_swap`, `starknet_get_quote`) to retry only classified retryable errors.
+- Extended error taxonomy with `transport` category for transient network/rate-limit failures so retry policy is data-driven.
+- Added unit coverage for retry math and retry gating (`__tests__/utils/retry.test.ts`) plus taxonomy coverage for transient transport classification.
+- Verified: `pnpm exec vitest run __tests__/utils/formatter.test.ts __tests__/utils/retry.test.ts` passed.
+- Blocker (verified): full package test run still fails in `__tests__/handlers/tools.test.ts` due to unresolved workspace entry for `@starknet-agentic/x402-starknet`.
+- Next: add idempotency key support for mutating tools (`transfer`/`invoke`/`swap`) with replay-safe response caching, then fix x402 workspace resolution to restore full handler suite.

@@ -77,6 +77,7 @@ export type ErrorCategory =
   | "quote_expired"
   | "insufficient_balance"
   | "no_quotes_available"
+  | "transport"
   | "unknown";
 
 type ErrorPattern = {
@@ -115,6 +116,22 @@ const ERROR_PATTERNS: ErrorPattern[] = [
     category: "no_quotes_available",
     patterns: ["No quotes available"],
     message: "No swap routes available for this token pair. The pair may not have liquidity.",
+    retryable: true,
+  },
+  {
+    category: "transport",
+    patterns: [
+      "fetch failed",
+      "network error",
+      "timeout",
+      "ETIMEDOUT",
+      "ECONNRESET",
+      "429",
+      "Too Many Requests",
+      "503",
+      "Service Unavailable",
+    ],
+    message: "Temporary transport failure. Please retry shortly.",
     retryable: true,
   },
 ];

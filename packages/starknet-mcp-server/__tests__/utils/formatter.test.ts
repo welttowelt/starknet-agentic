@@ -141,6 +141,14 @@ describe("classifyError", () => {
     });
   });
 
+  it("should classify transient transport errors as retryable", () => {
+    expect(classifyError("fetch failed")).toEqual({
+      category: "transport",
+      message: "Temporary transport failure. Please retry shortly.",
+      retryable: true,
+    });
+  });
+
   it("should classify unknown errors as non-retryable", () => {
     expect(classifyError("unexpected panic")).toEqual({
       category: "unknown",
