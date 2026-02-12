@@ -30,6 +30,10 @@ STARKNET_PRIVATE_KEY=0x...
 # avnu URLs (optional -- defaults shown)
 AVNU_BASE_URL=https://starknet.api.avnu.fi
 AVNU_PAYMASTER_URL=https://starknet.paymaster.avnu.fi
+
+# reliability (optional)
+# In-memory idempotency TTL for replay-safe writes (default: 10 minutes)
+IDEMPOTENCY_TTL_MS=600000
 ```
 
 ## Usage
@@ -81,7 +85,8 @@ Transfer tokens to another address.
 {
   "recipient": "0x...",
   "token": "STRK",
-  "amount": "10.5"  // human-readable format
+  "amount": "10.5",  // human-readable format
+  "idempotencyKey": "optional-client-generated-key"  // optional
 }
 ```
 
@@ -105,7 +110,8 @@ Invoke a state-changing contract function.
 {
   "contractAddress": "0x...",
   "entrypoint": "approve",
-  "calldata": ["0x...", "1000000"]
+  "calldata": ["0x...", "1000000"],
+  "idempotencyKey": "optional-client-generated-key"  // optional
 }
 ```
 
@@ -118,7 +124,8 @@ Execute a token swap using avnu aggregator.
   "sellToken": "ETH",
   "buyToken": "STRK",
   "amount": "0.1",
-  "slippage": 0.01  // optional, defaults to 1%
+  "slippage": 0.01,  // optional, defaults to 1%
+  "idempotencyKey": "optional-client-generated-key"  // optional
 }
 ```
 

@@ -49,3 +49,11 @@ Scope: production-grade reliability primitives for Starknet agent workflows.
 - Verified: `pnpm exec vitest run __tests__/utils/formatter.test.ts __tests__/utils/retry.test.ts` passed.
 - Blocker (verified): full package test run still fails in `__tests__/handlers/tools.test.ts` due to unresolved workspace entry for `@starknet-agentic/x402-starknet`.
 - Next: add idempotency key support for mutating tools (`transfer`/`invoke`/`swap`) with replay-safe response caching, then fix x402 workspace resolution to restore full handler suite.
+
+### 2026-02-12
+- Implemented in-memory idempotency/dedup store (`IdempotencyStore`) with stable input fingerprinting, TTL expiry, and in-flight coalescing.
+- Wired optional `idempotencyKey` into mutating tools: `starknet_transfer`, `starknet_invoke_contract`, `starknet_swap`.
+- Added `IDEMPOTENCY_TTL_MS` env config (default 10 minutes) and documented `idempotencyKey` + TTL in `packages/starknet-mcp-server/README.md`.
+- Tool responses now include `idempotency: { key, replayed }` when a key is provided.
+- Blocker (verified): package test suite + DTS build still fail due to unresolved workspace entry for `@starknet-agentic/x402-starknet` (same root issue as earlier).
+- Next: add unit tests for `IdempotencyStore` and then fix the `@starknet-agentic/x402-starknet` workspace/export resolution so handler tests + DTS builds pass.

@@ -61,6 +61,7 @@ import {
   createErrorTraceId,
 } from "./utils/formatter.js";
 import { withRetry } from "./utils/retry.js";
+import { IdempotencyStore } from "./utils/idempotency.js";
 
 // Environment validation
 const envSchema = z.object({
@@ -74,6 +75,7 @@ const envSchema = z.object({
   RETRY_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).optional(),
   RETRY_BASE_DELAY_MS: z.coerce.number().int().min(0).max(60_000).optional(),
   RETRY_MAX_DELAY_MS: z.coerce.number().int().min(1).max(120_000).optional(),
+  IDEMPOTENCY_TTL_MS: z.coerce.number().int().min(1_000).max(86_400_000).optional(),
 });
 
 const env = envSchema.parse({
@@ -87,6 +89,7 @@ const env = envSchema.parse({
   RETRY_MAX_ATTEMPTS: process.env.RETRY_MAX_ATTEMPTS,
   RETRY_BASE_DELAY_MS: process.env.RETRY_BASE_DELAY_MS,
   RETRY_MAX_DELAY_MS: process.env.RETRY_MAX_DELAY_MS,
+  IDEMPOTENCY_TTL_MS: process.env.IDEMPOTENCY_TTL_MS,
 });
 
 // Initialize Starknet provider and account
@@ -105,6 +108,7 @@ const retryConfig = {
   baseDelayMs: env.RETRY_BASE_DELAY_MS ?? 200,
   maxDelayMs: env.RETRY_MAX_DELAY_MS ?? 2_000,
 };
+const idempotencyStore = new IdempotencyStore(env.IDEMPOTENCY_TTL_MS ?? 10 * 60 * 1000);
 
 // Initialize TokenService with avnu base URL and RPC provider for on-chain fallback
 getTokenService(env.AVNU_BASE_URL);
@@ -272,6 +276,10 @@ const tools: Tool[] = [
           type: "string",
           description: "Token to pay gas fees in (symbol or address). Only used when gasfree=true and no API key is set.",
         },
+        idempotencyKey: {
+          type: "string",
+          description: "Optional deduplication key for replay-safe transfer execution.",
+        },
       },
       required: ["recipient", "token", "amount"],
     },
@@ -329,6 +337,10 @@ const tools: Tool[] = [
           type: "string",
           description: "Token to pay gas fees in (symbol or address). Only used when gasfree=true and no API key is set.",
         },
+        idempotencyKey: {
+          type: "string",
+          description: "Optional deduplication key for replay-safe contract invocation.",
+        },
       },
       required: ["contractAddress", "entrypoint"],
     },
@@ -365,6 +377,10 @@ const tools: Tool[] = [
         gasToken: {
           type: "string",
           description: "Token to pay gas fees in (symbol or address). Defaults to sellToken. Only used when gasfree=true and no API key is set.",
+        },
+        idempotencyKey: {
+          type: "string",
+          description: "Optional deduplication key for replay-safe swap execution.",
         },
       },
       required: ["sellToken", "buyToken", "amount"],
@@ -560,12 +576,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "starknet_transfer": {
-        const { recipient, token, amount, gasfree = false, gasToken } = args as {
+        const { recipient, token, amount, gasfree = false, gasToken, idempotencyKey } = args as {
           recipient: string;
           token: string;
           amount: string;
           gasfree?: boolean;
           gasToken?: string;
+          idempotencyKey?: string;
         };
 
         const tokenAddress = await resolveTokenAddressAsync(token);
@@ -581,8 +598,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }),
         };
 
-        const transactionHash = await executeTransaction(transferCall, gasfree, gasTokenAddress);
-        await provider.waitForTransaction(transactionHash);
+        const execution = await idempotencyStore.execute(
+          name,
+          idempotencyKey,
+          { recipient, tokenAddress, amountWei: amountWei.toString(), gasfree, gasTokenAddress },
+          async () => {
+            const transactionHash = await executeTransaction(transferCall, gasfree, gasTokenAddress);
+            await provider.waitForTransaction(transactionHash);
+            return transactionHash;
+          }
+        );
 
         return {
           content: [
@@ -590,11 +615,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: "text",
               text: JSON.stringify({
                 success: true,
-                transactionHash,
+                transactionHash: execution.result,
                 recipient,
                 token,
                 amount,
                 gasfree,
+                ...(execution.key
+                  ? {
+                      idempotency: {
+                        key: execution.key,
+                        replayed: execution.replayed,
+                      },
+                    }
+                  : {}),
               }, null, 2),
             },
           ],
@@ -629,19 +662,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "starknet_invoke_contract": {
-        const { contractAddress, entrypoint, calldata = [], gasfree = false, gasToken } = args as {
+        const { contractAddress, entrypoint, calldata = [], gasfree = false, gasToken, idempotencyKey } = args as {
           contractAddress: string;
           entrypoint: string;
           calldata?: string[];
           gasfree?: boolean;
           gasToken?: string;
+          idempotencyKey?: string;
         };
 
         const gasTokenAddress = gasToken ? await resolveTokenAddressAsync(gasToken) : TOKENS.STRK;
         const invokeCall: Call = { contractAddress, entrypoint, calldata };
 
-        const transactionHash = await executeTransaction(invokeCall, gasfree, gasTokenAddress);
-        await provider.waitForTransaction(transactionHash);
+        const execution = await idempotencyStore.execute(
+          name,
+          idempotencyKey,
+          { contractAddress, entrypoint, calldata, gasfree, gasTokenAddress },
+          async () => {
+            const transactionHash = await executeTransaction(invokeCall, gasfree, gasTokenAddress);
+            await provider.waitForTransaction(transactionHash);
+            return transactionHash;
+          }
+        );
 
         return {
           content: [
@@ -649,10 +691,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: "text",
               text: JSON.stringify({
                 success: true,
-                transactionHash,
+                transactionHash: execution.result,
                 contractAddress,
                 entrypoint,
                 gasfree,
+                ...(execution.key
+                  ? {
+                      idempotency: {
+                        key: execution.key,
+                        replayed: execution.replayed,
+                      },
+                    }
+                  : {}),
               }, null, 2),
             },
           ],
@@ -660,13 +710,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "starknet_swap": {
-        const { sellToken, buyToken, amount, slippage = 0.01, gasfree = false, gasToken } = args as {
+        const { sellToken, buyToken, amount, slippage = 0.01, gasfree = false, gasToken, idempotencyKey } = args as {
           sellToken: string;
           buyToken: string;
           amount: string;
           slippage?: number;
           gasfree?: boolean;
           gasToken?: string;
+          idempotencyKey?: string;
         };
 
         // Validate slippage is within reasonable bounds
@@ -721,8 +772,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }, { baseUrl: env.AVNU_BASE_URL });
 
         const gasTokenAddress = gasToken ? await resolveTokenAddressAsync(gasToken) : sellTokenAddress;
-        const transactionHash = await executeTransaction(calls, gasfree, gasTokenAddress);
-        await provider.waitForTransaction(transactionHash);
+
+        const execution = await idempotencyStore.execute(
+          name,
+          idempotencyKey,
+          {
+            sellTokenAddress,
+            buyTokenAddress,
+            sellAmount: sellAmount.toString(),
+            slippage,
+            gasfree,
+            gasTokenAddress,
+            quoteId: bestQuote.quoteId,
+          },
+          async () => {
+            const transactionHash = await executeTransaction(calls, gasfree, gasTokenAddress);
+            await provider.waitForTransaction(transactionHash);
+            return transactionHash;
+          }
+        );
 
         const tokenService = getTokenService();
         const buyDecimals = await tokenService.getDecimalsAsync(buyTokenAddress);
@@ -734,7 +802,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: "text",
               text: JSON.stringify({
                 success: true,
-                transactionHash,
+                transactionHash: execution.result,
                 sellToken,
                 buyToken,
                 sellAmount: amount,
@@ -742,6 +810,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 buyAmountInUsd: bestQuote.buyAmountInUsd?.toFixed(2),
                 slippage,
                 gasfree,
+                ...(execution.key
+                  ? {
+                      idempotency: {
+                        key: execution.key,
+                        replayed: execution.replayed,
+                      },
+                    }
+                  : {}),
               }, null, 2),
             },
           ],
