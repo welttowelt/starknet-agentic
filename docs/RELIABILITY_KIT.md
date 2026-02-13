@@ -57,3 +57,8 @@ Scope: production-grade reliability primitives for Starknet agent workflows.
 - Tool responses now include `idempotency: { key, replayed }` when a key is provided.
 - Blocker (verified): package test suite + DTS build still fail due to unresolved workspace entry for `@starknet-agentic/x402-starknet` (same root issue as earlier).
 - Next: add unit tests for `IdempotencyStore` and then fix the `@starknet-agentic/x402-starknet` workspace/export resolution so handler tests + DTS builds pass.
+
+### 2026-02-13
+- Added unit tests for `IdempotencyStore` covering: no-key bypass, completed-result caching, in-flight coalescing, fingerprint mismatch, and TTL expiry (`packages/starknet-mcp-server/__tests__/utils/idempotency.test.ts`).
+- Verified: `pnpm -C packages/starknet-mcp-server exec vitest run __tests__/utils/idempotency.test.ts` passed (5/5).
+- Next: fix the `@starknet-agentic/x402-starknet` workspace/export resolution so the full handler test suite + DTS builds pass again.
