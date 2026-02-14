@@ -62,3 +62,10 @@ Scope: production-grade reliability primitives for Starknet agent workflows.
 - Added unit tests for `IdempotencyStore` covering: no-key bypass, completed-result caching, in-flight coalescing, fingerprint mismatch, and TTL expiry (`packages/starknet-mcp-server/__tests__/utils/idempotency.test.ts`).
 - Verified: `pnpm -C packages/starknet-mcp-server exec vitest run __tests__/utils/idempotency.test.ts` passed (5/5).
 - Next: fix the `@starknet-agentic/x402-starknet` workspace/export resolution so the full handler test suite + DTS builds pass again.
+
+### 2026-02-14
+- Fixed `@starknet-agentic/x402-starknet` Vite/Vitest entry resolution by pointing package `main`/`types`/`exports` to `src/index.ts` (dev-first workspace package semantics).
+- Verified: `pnpm -C packages/starknet-mcp-server exec vitest run __tests__/handlers/tools.test.ts` passed (38/38).
+- Verified: `pnpm -C packages/starknet-mcp-server build` (tsup + dts) succeeded.
+- Blocker (verified): cannot `git fetch/push` to GitHub from this runtime (connectivity error to github.com:443).
+- Next: decide whether to keep dev-first entrypoints or switch to dual-entry (src for dev, dist for publish) and add a prepack/build pipeline if we ever publish `x402-starknet`.
