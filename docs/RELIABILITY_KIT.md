@@ -67,5 +67,5 @@ Scope: production-grade reliability primitives for Starknet agent workflows.
 - Fixed `@starknet-agentic/x402-starknet` Vite/Vitest entry resolution by pointing package `main`/`types`/`exports` to `src/index.ts` (dev-first workspace package semantics).
 - Verified: `pnpm -C packages/starknet-mcp-server exec vitest run __tests__/handlers/tools.test.ts` passed (38/38).
 - Verified: `pnpm -C packages/starknet-mcp-server build` (tsup + dts) succeeded.
-- Blocker (verified): cannot `git fetch/push` to GitHub from this runtime (connectivity error to github.com:443).
+- Note (verified): initial `git fetch` attempt failed due to transient GitHub connectivity; later `git push` succeeded.
 - Next: decide whether to keep dev-first entrypoints or switch to dual-entry (src for dev, dist for publish) and add a prepack/build pipeline if we ever publish `x402-starknet`.
