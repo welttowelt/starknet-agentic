@@ -12,6 +12,7 @@ Production-ready skills for AI agents operating on Starknet. Built for the Agent
 | [starknet-mini-pay](./starknet-mini-pay/) | P2P payments, QR codes, Telegram bot | Complete |
 | [starknet-anonymous-wallet](./starknet-anonymous-wallet/) | Anonymous wallet creation via Typhoon | Complete |
 | [huginn-onboard](./huginn-onboard/) | Bridge to Starknet and register with Huginn | Complete |
+| [torii-sql](./torii-sql/) | Query Cartridge Torii SQL endpoints for indexed world analytics | Complete |
 
 ## Installation
 
@@ -26,6 +27,7 @@ npx skills add keep-starknet-strange/starknet-agentic
 # Install specific skill
 npx skills add keep-starknet-strange/starknet-agentic/skills/starknet-wallet
 npx skills add keep-starknet-strange/starknet-agentic/skills/starknet-defi
+npx skills add keep-starknet-strange/starknet-agentic/skills/torii-sql
 ```
 
 ### Option 2: Claude Code Plugin Marketplace
@@ -43,6 +45,7 @@ npx skills add keep-starknet-strange/starknet-agentic/skills/starknet-defi
 /plugin install starknet-identity@keep-starknet-strange-starknet-agentic
 /plugin install starknet-payments@keep-starknet-strange-starknet-agentic
 /plugin install starknet-privacy@keep-starknet-strange-starknet-agentic
+/plugin install torii-sql@keep-starknet-strange-starknet-agentic
 ```
 
 ### Option 3: Direct Git Clone
